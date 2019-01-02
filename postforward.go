@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -74,25 +73,25 @@ func die(msg string, code int) {
 //
 // Note that the Return-Path header is left intact. Postfix (specifically,
 // the cleanup daemon) will replace this header automatically.
-func headerRewriter(in io.Reader, headers []string) io.Reader {
+func headerRewriter(in *bytes.Buffer, headers []string) io.Reader {
 	buffer := bytes.Buffer{}
-	scanner := bufio.NewScanner(in)
-	linenum := 0
-	for scanner.Scan() {
-		linenum++
-		line := scanner.Bytes()
-		if linenum == 1 {
-			for _, header := range headers {
-				buffer.WriteString(header + "\r\n")
-			}
 
-			if bytes.HasPrefix(line, []byte("From ")) {
-				continue
-			}
-		}
-		buffer.Write(line)
-		buffer.Write([]byte("\r\n"))
+	// Write extra headers
+	for _, header := range headers {
+		buffer.WriteString(header + "\r\n")
 	}
+
+	// Trim initial "From ..." line
+	toCopy := in.Bytes()
+	if bytes.HasPrefix(toCopy, []byte("From ")) {
+		// Given that mail.ReadMessage succeeded, this should not fail
+		toCopy = toCopy[bytes.IndexAny(toCopy, "\r\n"):]
+		for toCopy[0] == '\r' || toCopy[0] == '\n' {
+			toCopy = toCopy[1:]
+		}
+	}
+	buffer.Write(toCopy)
+
 	return &buffer
 }
 
